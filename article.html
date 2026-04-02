@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Article — TechEnglish</title>
+  <meta name="description" content="Read tech articles and learn IT vocabulary in context.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/article.css">
+  <link rel="stylesheet" href="css/tooltip.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="index.html" class="site-logo">
+      <div class="site-logo-icon">TE</div>
+      TechEnglish
+    </a>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="index.html#lessons" class="nav-link">Lessons</a>
+      <a href="index.html#articles" class="nav-link active">Articles</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="index.html" class="nav-link">Home</a>
+  <a href="index.html#lessons" class="nav-link">Lessons</a>
+  <a href="index.html#articles" class="nav-link active">Articles</a>
+</nav>
+
+<main class="site-main">
+  <div class="article-outer">
+
+    <!-- Main article content -->
+    <div class="article-page">
+
+      <a href="index.html#articles" class="article-back">← All Articles</a>
+
+      <header class="article-header">
+        <div class="article-tags" id="article-tags"></div>
+        <h1 class="article-title" id="article-title">Loading...</h1>
+        <div class="article-meta">
+          <span id="article-date"></span>
+          <span>📖 <span id="article-read-time"></span></span>
+        </div>
+        <p class="article-summary" id="article-summary"></p>
+      </header>
+
+      <!-- Hint bar -->
+      <div class="vocab-hint-bar">
+        <span class="vocab-hint-icon">💡</span>
+        <span>Click any <strong style="color:var(--color-primary);text-decoration:underline dotted;">highlighted word</strong> to see its definition and pronunciation.</span>
+      </div>
+
+      <!-- Article body -->
+      <div class="article-body" id="article-body">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Vocabulary list (mobile & tablet) -->
+      <div class="article-vocab-list">
+        <div class="article-vocab-list-title">Vocabulary in this article</div>
+        <div class="vocab-pill-list" id="vocab-pill-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Article navigation -->
+      <nav class="article-nav" aria-label="Article navigation">
+        <a href="#" class="article-nav-btn" id="btn-prev-article">← Previous</a>
+        <a href="index.html#articles" class="article-nav-btn">All Articles</a>
+        <a href="#" class="article-nav-btn" id="btn-next-article">Next →</a>
+      </nav>
+
+    </div>
+
+    <!-- Desktop sidebar -->
+    <aside class="article-sidebar" id="article-sidebar" aria-label="Vocabulary in this article">
+      <div class="article-sidebar-title">Vocabulary</div>
+      <div class="article-sidebar-list" id="article-sidebar-list">
+        <!-- Rendered by JS -->
+      </div>
+    </aside>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">TechEnglish</div>
+      <div class="footer-tagline">Learn IT English effectively</div>
+    </div>
+    <div class="footer-links">
+      <a href="index.html#lessons">Lessons</a>
+      <a href="index.html#articles">Articles</a>
+    </div>
+  </div>
+</footer>
+
+<script src="js/data/vocabulary.js"></script>
+<script src="js/data/vocabulary-extra.js"></script>
+<script src="js/data/lessons.js"></script>
+<script src="js/data/articles.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/tooltip.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/article.js"></script>
+
+</body>
+</html>

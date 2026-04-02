@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TechEnglish — Learn IT English</title>
+  <meta name="description" content="Master English vocabulary for the IT industry. Interactive lessons, tech articles, and pronunciation practice.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="index.html" class="site-logo">
+      <div class="site-logo-icon">TE</div>
+      TechEnglish
+    </a>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html" class="nav-link active">Home</a>
+      <a href="index.html#lessons" class="nav-link">Lessons</a>
+      <a href="index.html#articles" class="nav-link">Articles</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="index.html" class="nav-link active">Home</a>
+  <a href="index.html#lessons" class="nav-link">Lessons</a>
+  <a href="index.html#articles" class="nav-link">Articles</a>~
+</nav>
+
+<main class="site-main">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span>🖥️</span>
+        <span>IT-focused English Learning</span>
+      </div>
+      <h1 class="hero-title">Learn English<br>for the Tech World</h1>
+      <p class="hero-subtitle">
+        Master the vocabulary used by developers, engineers, and IT professionals.
+        Practice pronunciation, read tech articles, and build your IT English fluency.
+      </p>
+      <div class="hero-actions">
+        <a href="#today" class="btn btn-primary btn-lg">Today's Lesson</a>
+        <a href="#articles" class="btn btn-secondary btn-lg">Read Articles</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- TODAY'S LEARNING -->
+  <section class="page-section today-section" id="today">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Today's Learning</h2>
+        <p class="section-subtitle" id="today-date-label"></p>
+      </div>
+      <div class="today-grid cards-grid" style="max-width:800px;">
+        <div id="today-lesson-card" class="lesson-card" style="border-top:3px solid var(--color-primary);"></div>
+        <div id="today-article-card" class="article-card"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LESSONS -->
+  <section class="page-section" id="lessons">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">All Lessons</h2>
+        <p class="section-subtitle">Browse all 8 topic categories — each with 15–20 key IT terms, typing practice, and pronunciation.</p>
+      </div>
+      <div class="cards-grid" id="lessons-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ARTICLES -->
+  <section class="page-section" id="articles">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Tech Articles</h2>
+        <p class="section-subtitle">8 tech articles covering networking, databases, security, DevOps, and AI. Click any <span style="color:var(--color-primary);text-decoration:underline dotted;font-weight:600;">highlighted word</span> to see its meaning.</p>
+      </div>
+      <div class="cards-grid" id="articles-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">TechEnglish</div>
+      <div class="footer-tagline">Learn IT English effectively</div>
+    </div>
+    <div class="footer-links">
+      <a href="#lessons">Lessons</a>
+      <a href="#articles">Articles</a>
+    </div>
+  </div>
+</footer>
+
+<script src="js/data/vocabulary.js"></script>
+<script src="js/data/vocabulary-extra.js"></script>
+<script src="js/data/lessons.js"></script>
+<script src="js/data/articles.js"></script>
+<script src="js/daily.js"></script>
+<script src="js/nav.js"></script>
+<script>
+(function () {
+  // ===== TODAY'S LEARNING =====
+  const todayLesson = Daily.getDailyLesson();
+  const todayArticle = Daily.getDailyArticle();
+
+  document.getElementById('today-date-label').textContent = todayLesson.dateLabel;
+
+  const categories = [...new Set(todayLesson.words.map(w => w.category))];
+  const catLabels = categories.map(c => c.replace(/-/g, ' ')).join(', ');
+  document.getElementById('today-lesson-card').innerHTML = `
+    <div class="lesson-card-header">
+      <h3 class="lesson-card-title">📅 ${todayLesson.title}</h3>
+      <span class="badge badge-primary">Daily</span>
+    </div>
+    <p class="lesson-card-desc">Today's ${todayLesson.words.length} words cover: <strong>${catLabels}</strong>. Practice typing each word to unlock example sentences.</p>
+    <div class="lesson-card-meta">
+      <span class="lesson-card-meta-item">📚 ${todayLesson.words.length} words</span>
+      <span class="lesson-card-meta-item">⏱ ~${todayLesson.estimatedMinutes} min</span>
+      <span class="lesson-card-meta-item">Day ${todayLesson.dayIndex + 1} / ${todayLesson.totalDays}</span>
+    </div>
+    <div class="lesson-card-footer">
+      <a href="lesson.html?id=daily" class="btn btn-primary" style="width:100%;justify-content:center;">Start Today's Lesson →</a>
+    </div>
+  `;
+
+  const articleDate = new Date(todayArticle.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const articleTagsHtml = todayArticle.tags.slice(0, 3).map(t => `<span class="badge badge-tag">${t}</span>`).join('');
+  document.getElementById('today-article-card').innerHTML = `
+    <h3 class="article-card-title">📰 ${todayArticle.title}</h3>
+    <p class="article-card-summary">${todayArticle.summary}</p>
+    <div class="article-card-tags">${articleTagsHtml}</div>
+    <div class="article-card-meta">
+      <span>${articleDate}</span>
+      <span>📖 ${todayArticle.readingMinutes} min read</span>
+    </div>
+    <a href="article.html?id=${todayArticle.id}" class="btn btn-outline" style="width:100%;justify-content:center;margin-top:var(--space-2);">Read Today's Article →</a>
+  `;
+
+  // ===== ALL LESSONS =====
+  const lessonsGrid = document.getElementById('lessons-grid');
+  LESSONS.forEach(lesson => {
+    const wordCount = lesson.wordIds ? lesson.wordIds.length : (lesson.words ? lesson.words.length : 0);
+    const card = document.createElement('div');
+    card.className = `lesson-card ${lesson.level}`;
+    card.innerHTML = `
+      <div class="lesson-card-header">
+        <h3 class="lesson-card-title">${lesson.title}</h3>
+        <span class="badge badge-${lesson.level}">${lesson.level}</span>
+      </div>
+      <p class="lesson-card-desc">${lesson.description}</p>
+      <div class="lesson-card-meta">
+        <span class="lesson-card-meta-item">📚 ${wordCount} words</span>
+        <span class="lesson-card-meta-item">⏱ ${lesson.estimatedMinutes} min</span>
+      </div>
+      <div class="lesson-card-footer">
+        <a href="lesson.html?id=${lesson.id}" class="btn btn-primary" style="width:100%;justify-content:center;">Start Lesson →</a>
+      </div>
+    `;
+    lessonsGrid.appendChild(card);
+  });
+
+  // Render article cards
+  const articlesGrid = document.getElementById('articles-grid');
+  ARTICLES.forEach(article => {
+    const date = new Date(article.publishDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const tagsHtml = article.tags.slice(0, 3).map(t => `<span class="badge badge-tag">${t}</span>`).join('');
+    const card = document.createElement('div');
+    card.className = 'article-card';
+    card.innerHTML = `
+      <h3 class="article-card-title">${article.title}</h3>
+      <p class="article-card-summary">${article.summary}</p>
+      <div class="article-card-tags">${tagsHtml}</div>
+      <div class="article-card-meta">
+        <span>${date}</span>
+        <span>📖 ${article.readingMinutes} min read</span>
+      </div>
+      <a href="article.html?id=${article.id}" class="btn btn-outline" style="width:100%;justify-content:center;margin-top:var(--space-2);">Read Article →</a>
+    `;
+    articlesGrid.appendChild(card);
+  });
+})();
+</script>
+
+</body>
+</html>
