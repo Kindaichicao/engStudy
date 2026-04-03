@@ -302,6 +302,10 @@
   }
 
   function showComplete() {
+    if (lessonId !== 'daily') {
+      Progress.markCompleted(lessonId);
+    }
+
     cardArea.innerHTML = `
       <div class="lesson-complete">
         <div class="lesson-complete-icon">🎉</div>
@@ -316,6 +320,11 @@
       </div>
     `;
     progressInfo.textContent = `All ${lesson.words.length} words practiced!`;
+  }
+
+  // Track progress
+  if (lessonId !== 'daily') {
+    Progress.markInProgress(lessonId);
   }
 
   // Initial render

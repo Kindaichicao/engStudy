@@ -47,7 +47,7 @@
         <span>🖥️</span>
         <span>IT-focused English Learning</span>
       </div>
-      <h1 class="hero-title">Learn English<br>for the Tech World</h1>
+      <h1 class="hero-title">Learn English<br><span class="hero-title-accent">for the Tech World</span></h1>
       <p class="hero-subtitle">
         Master the vocabulary used by developers, engineers, and IT professionals.
         Practice pronunciation, read tech articles, and build your IT English fluency.
@@ -78,11 +78,35 @@
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">All Lessons</h2>
-        <p class="section-subtitle">Browse all 8 topic categories — each with 15–20 key IT terms, typing practice, and pronunciation.</p>
+        <p class="section-subtitle">Browse all topic categories — each with 15–35 key IT terms, typing practice, and pronunciation.</p>
       </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar" id="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Level</span>
+          <div class="filter-chips" id="filter-level">
+            <button class="filter-chip active" data-value="all">All</button>
+            <button class="filter-chip" data-value="beginner">Beginner</button>
+            <button class="filter-chip" data-value="intermediate">Intermediate</button>
+            <button class="filter-chip" data-value="advanced">Advanced</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <div class="filter-chips" id="filter-status">
+            <button class="filter-chip active" data-value="all">All</button>
+            <button class="filter-chip" data-value="not_started">Chưa học</button>
+            <button class="filter-chip" data-value="in_progress">Đang học</button>
+            <button class="filter-chip" data-value="completed">Đã học</button>
+          </div>
+        </div>
+      </div>
+
       <div class="cards-grid" id="lessons-grid">
         <!-- Rendered by JS -->
       </div>
+      <p class="filter-empty-msg" id="filter-empty-msg" style="display:none;">No lessons match the selected filters.</p>
     </div>
   </section>
 
@@ -119,6 +143,7 @@
 <script src="js/data/lessons.js"></script>
 <script src="js/data/articles.js"></script>
 <script src="js/daily.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/nav.js"></script>
 <script>
 (function () {
@@ -160,27 +185,93 @@
   `;
 
   // ===== ALL LESSONS =====
+  const STATUS_LABELS = {
+    not_started: 'Chưa học',
+    in_progress: 'Đang học',
+    completed: 'Đã học'
+  };
+  const STATUS_ORDER = { not_started: 0, in_progress: 0, completed: 1 };
+
   const lessonsGrid = document.getElementById('lessons-grid');
-  LESSONS.forEach(lesson => {
-    const wordCount = lesson.wordIds ? lesson.wordIds.length : (lesson.words ? lesson.words.length : 0);
-    const card = document.createElement('div');
-    card.className = `lesson-card ${lesson.level}`;
-    card.innerHTML = `
-      <div class="lesson-card-header">
-        <h3 class="lesson-card-title">${lesson.title}</h3>
-        <span class="badge badge-${lesson.level}">${lesson.level}</span>
-      </div>
-      <p class="lesson-card-desc">${lesson.description}</p>
-      <div class="lesson-card-meta">
-        <span class="lesson-card-meta-item">📚 ${wordCount} words</span>
-        <span class="lesson-card-meta-item">⏱ ${lesson.estimatedMinutes} min</span>
-      </div>
-      <div class="lesson-card-footer">
-        <a href="lesson.html?id=${lesson.id}" class="btn btn-primary" style="width:100%;justify-content:center;">Start Lesson →</a>
-      </div>
-    `;
-    lessonsGrid.appendChild(card);
+  const emptyMsg = document.getElementById('filter-empty-msg');
+  let activeLevel = 'all';
+  let activeStatus = 'all';
+
+  function getStatusBadgeClass(status) {
+    if (status === 'completed') return 'badge-status badge-status-completed';
+    if (status === 'in_progress') return 'badge-status badge-status-progress';
+    return 'badge-status badge-status-new';
+  }
+
+  function getActionLabel(status) {
+    if (status === 'completed') return 'Review Lesson →';
+    if (status === 'in_progress') return 'Continue Lesson →';
+    return 'Start Lesson →';
+  }
+
+  function renderLessons() {
+    lessonsGrid.innerHTML = '';
+    const progress = Progress.getAll();
+
+    const sorted = [...LESSONS].sort((a, b) => {
+      const sa = (progress[a.id] && progress[a.id].status) || 'not_started';
+      const sb = (progress[b.id] && progress[b.id].status) || 'not_started';
+      return (STATUS_ORDER[sa] || 0) - (STATUS_ORDER[sb] || 0);
+    });
+
+    let visibleCount = 0;
+
+    sorted.forEach(lesson => {
+      const status = (progress[lesson.id] && progress[lesson.id].status) || 'not_started';
+
+      if (activeLevel !== 'all' && lesson.level !== activeLevel) return;
+      if (activeStatus !== 'all' && status !== activeStatus) return;
+
+      visibleCount++;
+      const wordCount = lesson.wordIds ? lesson.wordIds.length : (lesson.words ? lesson.words.length : 0);
+      const card = document.createElement('div');
+      card.className = `lesson-card ${lesson.level}` + (status === 'completed' ? ' is-completed' : '');
+      card.innerHTML = `
+        <div class="lesson-card-header">
+          <h3 class="lesson-card-title">${lesson.title}</h3>
+          <span class="badge badge-${lesson.level}">${lesson.level}</span>
+        </div>
+        <p class="lesson-card-desc">${lesson.description}</p>
+        <div class="lesson-card-meta">
+          <span class="lesson-card-meta-item">📚 ${wordCount} words</span>
+          <span class="lesson-card-meta-item">⏱ ${lesson.estimatedMinutes} min</span>
+          <span class="lesson-card-meta-item ${getStatusBadgeClass(status)}">${STATUS_LABELS[status]}</span>
+        </div>
+        <div class="lesson-card-footer">
+          <a href="lesson.html?id=${lesson.id}" class="btn ${status === 'completed' ? 'btn-outline' : 'btn-primary'}" style="width:100%;justify-content:center;">${getActionLabel(status)}</a>
+        </div>
+      `;
+      lessonsGrid.appendChild(card);
+    });
+
+    emptyMsg.style.display = visibleCount === 0 ? '' : 'none';
+  }
+
+  // Wire filter chips
+  document.querySelectorAll('#filter-level .filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filter-level .filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeLevel = btn.dataset.value;
+      renderLessons();
+    });
   });
+
+  document.querySelectorAll('#filter-status .filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#filter-status .filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.value;
+      renderLessons();
+    });
+  });
+
+  renderLessons();
 
   // Render article cards
   const articlesGrid = document.getElementById('articles-grid');
