@@ -34,13 +34,8 @@ const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
-// ---------------------------------------------------------------------------
-// Progress database — single-user mode.
-// Set USER_ID in .env to override the default ("me").
-// ---------------------------------------------------------------------------
-const progressDb = openProgressDb();
 const USER_ID = (process.env.USER_ID || "me").trim();
-console.log("Progress DB ready at", process.env.PROGRESS_DB_PATH || "data/progress.db", "| user:", USER_ID);
+let progressDb;   // populated inside startServer() before listen()
 
 // ---------------------------------------------------------------------------
 // API: health — tells the front-end which provider (if any) is configured.
@@ -260,7 +255,11 @@ const DENY = [
   /^\/?\.idea(\/|$)/i,
   /^\/?server\.js$/i,
   /^\/?db(\/|$)/i,
-  /^\/?data(\/|$)/i
+  /^\/?data(\/|$)/i,
+  /^\/?scripts(\/|$)/i,
+  // Block any JSON file at the project root — none of them are public assets;
+  // GCP service-account keys land here with names like "<project>-<id>.json".
+  /^\/?[^/]+\.json$/i
 ];
 app.use((req, res, next) => {
   if (DENY.some(rx => rx.test(req.path))) {
@@ -282,13 +281,32 @@ app.use(express.static(path.join(__dirname), {
 app.use((req, res) => res.status(404).send("Not found"));
 
 // ---------------------------------------------------------------------------
-app.listen(PORT, () => {
-  const providers = [];
-  if (GEMINI_KEY) providers.push(`gemini (${GEMINI_MODEL})`);
-  if (GROQ_KEY) providers.push(`groq (${GROQ_MODEL})`);
-  console.log(`\nTechEnglish server running at http://localhost:${PORT}`);
-  console.log(providers.length
-    ? `AI coach configured: ${providers.join(", ")}  |  default: ${DEFAULT_PROVIDER}`
-    : "AI coach: no key in .env — front-end will fall back to user-provided keys.");
-  console.log("Press Ctrl+C to stop.\n");
+async function startServer() {
+  progressDb = await openProgressDb();
+  console.log("user:", USER_ID);
+
+  app.listen(PORT, () => {
+    const providers = [];
+    if (GEMINI_KEY) providers.push(`gemini (${GEMINI_MODEL})`);
+    if (GROQ_KEY) providers.push(`groq (${GROQ_MODEL})`);
+    console.log(`\nTechEnglish server running at http://localhost:${PORT}`);
+    console.log(providers.length
+      ? `AI coach configured: ${providers.join(", ")}  |  default: ${DEFAULT_PROVIDER}`
+      : "AI coach: no key in .env — front-end will fall back to user-provided keys.");
+    console.log("Press Ctrl+C to stop.\n");
+  });
+
+  // Best-effort flush of buffered writes (DriveStore) on graceful shutdown.
+  for (const sig of ["SIGINT", "SIGTERM"]) {
+    process.on(sig, async () => {
+      console.log(`\n[${sig}] flushing pending writes…`);
+      try { await progressDb.flush(); } catch (e) { console.error("flush:", e.message); }
+      process.exit(0);
+    });
+  }
+}
+
+startServer().catch(err => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });

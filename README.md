@@ -85,24 +85,100 @@ These are only used by the Business English pages and AI Coach; the rest of the 
 
 When the server is running, all Business English progress (lesson status, best
 scenario scores, attempt count, streak, self-check, last 30 chat transcripts)
-is written to a single JSON file at `data/progress.json`. **Single-user mode**:
-every browser pointing at the same server shares the same data automatically —
-no login, no IDs to copy.
+is persisted as a single JSON document. **Single-user mode**: every browser
+pointing at the same server shares the same data — no login, no IDs to copy.
 
-Why JSON instead of SQLite?
+Two backends — pick one with `STORAGE_BACKEND` in `.env`:
 
-- Boot once → load file into memory → every change writes the file atomically
-  (write to `.tmp` + rename). No DB engine, no native compilation.
-- The image / build is tiny — pure JS.
-- Backup is `cp data/progress.json elsewhere/`. Inspect by opening it in any editor.
-- Restore is `cp` in the other direction.
+| Backend | When to use | Persistence |
+|---|---|---|
+| `local` (default) | Running the server on your own machine | Local file `data/progress.json` |
+| `drive` | Deployed to a host without persistent disk (e.g. Koyeb free) | Google Drive |
 
-If you switch from localStorage-only to the server later, the client
-automatically uploads its existing localStorage snapshot via
-`/api/progress/import` on first connect — no data lost.
+Both backends share the in-memory base class so behaviour is identical from
+the API's perspective. The Sync panel on the Business English page has an
+*Export JSON backup* button regardless of backend.
 
-The Sync panel on the Business English page has an *Export JSON backup* button
-for a portable copy you can keep anywhere.
+---
+
+## Google Drive backend (free + persistent across redeploys)
+
+Use this if you deploy to a host without persistent disk (Koyeb free, Render free, Vercel) but still want your progress to survive redeploys. Your data lives in **your own Google Drive** as a tiny JSON file — free 15 GB quota, full control, no extra services.
+
+How it works:
+
+- The server authenticates with a **Service Account** (server-only Google identity).
+- You create a folder in your personal Drive and **share it** with the SA's email.
+- The server reads the JSON file from that folder on boot and writes back on every change (debounced ~2s to avoid hammering the API).
+
+### One-time GCP setup (~5 minutes)
+
+1. Go to <https://console.cloud.google.com/projectcreate> → create a project (any name).
+2. With the project selected, go to <https://console.cloud.google.com/apis/library/drive.googleapis.com> and click **Enable**.
+3. Open <https://console.cloud.google.com/iam-admin/serviceaccounts> → **Create service account**.
+   - Name: `techenglish-bot`. No roles needed (we authorize via Drive sharing instead). Click **Done**.
+4. Click the new service account → **Keys** tab → **Add key** → **Create new key** → **JSON** → downloads `xxxxx.json`.
+5. **Note the SA email** at the top of the page — looks like `techenglish-bot@my-project-12345.iam.gserviceaccount.com`.
+
+### Drive setup
+
+1. In Google Drive, create a folder, e.g. `TechEnglish`.
+2. Right-click the folder → **Share** → paste the SA email → set role to **Editor** → Send (no need to wait for accept).
+3. Open the folder, copy the ID from the URL: `https://drive.google.com/drive/folders/<THIS_PART>`.
+
+### Local config (`.env`)
+
+Put the downloaded JSON file at the project root and rename to e.g. `gcp-sa.json` (it's already gitignored).
+
+```env
+STORAGE_BACKEND=drive
+GOOGLE_SERVICE_ACCOUNT_KEY_FILE=./gcp-sa.json
+GOOGLE_DRIVE_FOLDER_ID=<paste folder id here>
+GOOGLE_DRIVE_FILE_NAME=progress.json
+```
+
+### Verify the setup
+
+```bash
+npm run check:drive
+```
+
+Should print:
+
+```
+Service account: techenglish-bot@...
+Folder ID:       1AbC...
+✅ Auth OK
+✅ Folder accessible
+✅ Upload OK
+✅ Download OK
+✅ Cleanup OK
+🎉 All checks passed.
+```
+
+If anything fails, the message tells you what to fix (most common: forgot to share the folder with the SA email).
+
+### Deploy with Drive on Koyeb
+
+For cloud env vars, base64-encode the SA JSON so it fits on one line:
+
+```bash
+# macOS / Linux
+base64 -i gcp-sa.json | tr -d '\n' | pbcopy   # macOS, copies to clipboard
+# or:
+base64 < gcp-sa.json | tr -d '\n'
+```
+
+Then in the Koyeb service, set these env vars (mark the SA one as a Secret):
+
+| Name | Value |
+|---|---|
+| `STORAGE_BACKEND` | `drive` |
+| `GOOGLE_SERVICE_ACCOUNT_KEY_B64` | the long base64 string |
+| `GOOGLE_DRIVE_FOLDER_ID` | the folder ID |
+| `GEMINI_API_KEY` | your Gemini key |
+
+Now your progress lives in your Drive forever — redeploys, restarts, region migrations all keep the data intact.
 
 ---
 
@@ -110,15 +186,13 @@ for a portable copy you can keep anywhere.
 
 If you want to use the app from any network (phone on 4G, laptop at a coffee shop), deploy the server to a public host. **Koyeb's free Eco tier is enough**: 1 free service, public HTTPS URL, region Singapore — perfect for single-user scale.
 
-### One caveat: Koyeb free tier has no persistent volume
+### Koyeb free tier has no persistent volume — use the Google Drive backend
 
-The container's `/data/progress.json` is wiped on every redeploy or restart. Three ways to handle this:
+The container's local filesystem is wiped on every redeploy or restart. The **recommended setup** is to switch `STORAGE_BACKEND=drive` (see the section above) so your progress lives in your own Google Drive — free, persistent, no extra fees.
 
-1. **Just hit *Export JSON backup* before redeploying** (and *Import* via localStorage on next boot — the client auto-imports). Easiest, $0.
-2. **Pay for a Koyeb attached volume** (~$0.10/GB/month) to make `/data` persistent.
-3. **Run locally** with `npm start` if cross-network isn't required — file persists on your machine.
-
-The progress file is small (a few KB even after months of use), so option 1 is fine for most people.
+If you really want local-disk storage, options are:
+- *Export JSON backup* before redeploying (manual, fragile)
+- Pay for a Koyeb attached volume (~$0.10/GB/month)
 
 ### Deploy steps (Git-based, one-time setup)
 
@@ -187,11 +261,14 @@ The free trial credit covers a few months at single-user scale. After that ~$2�
 │       ├── vocabulary.js, lessons.js, articles.js   # IT English content
 ├── server.js                     # Node/Express static + AI proxy + progress API
 ├── db/
-│   └── progress-db.js            # JSON-file progress store (in-memory + atomic write)
-├── data/                         # progress.json lives here at runtime (gitignored)
-│   └── progress.json
+│   ├── memory-store.js           # base class — in-memory state + business rules
+│   ├── progress-db.js            # factory: picks local vs Drive backend
+│   └── drive-store.js            # Google Drive backend (SA auth + REST + debounce)
+├── scripts/
+│   └── check-drive.js            # `npm run check:drive` — verify GCP / Drive setup
+├── data/                         # progress.json (local backend, gitignored)
 ├── Dockerfile                    # production image (Koyeb / Fly / any container host)
-├── fly.toml                      # Fly.io config (optional)
+├── fly.toml                      # optional Fly.io config
 ├── package.json
 ├── .env.example                  # template
 └── .env                          # your secrets (gitignored)

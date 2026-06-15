@@ -4,8 +4,15 @@ node_modules/
 *.log
 .DS_Store
 
-# SQLite progress database (created at runtime)
+# Progress JSON file (created at runtime)
 data/
+
+# Google Cloud service-account keys — NEVER commit these
+*.gcp.json
+gcp-sa*.json
+service-account*.json
+# Default Google export filename: <project-id>-<key-fingerprint>.json
+[a-z0-9]*-[a-f0-9]*.json
 
 # Fly.io
 .fly/
