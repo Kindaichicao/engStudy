@@ -1,297 +1,221 @@
 /**
- * progress-db.js — SQLite data-access layer for the TechEnglish progress store.
+ * progress-db.js — JSON-file progress store for the TechEnglish server.
  *
- * Uses better-sqlite3 (synchronous, fast, file-based).
- * The DB file lives at  data/progress.db  by default.
+ * Design (single-user, super simple):
+ *   - One JSON file at  data/progress.json  (path overridable via PROGRESS_DB_PATH).
+ *   - Loaded into an in-memory object once on boot.
+ *   - Every mutation updates the in-memory state and writes the file
+ *     atomically (write to .tmp + rename) — no DB engine, no native
+ *     compilation, no schema migration.
+ *   - Public API matches the previous SQLite version so server.js doesn't
+ *     need to change.
+ *
+ * File shape:
+ *   {
+ *     "lessons": {
+ *       "w1-intro": {
+ *         "status": "completed" | "in_progress" | "not_started",
+ *         "startedAt": "ISO",
+ *         "completedAt": "ISO|null",
+ *         "scenarios": {
+ *           "s1": { "bestScore": 85, "attempts": 2, "lastAt": "ISO" }
+ *         }
+ *       }
+ *     },
+ *     "streak":    { "lastStudyDate": "YYYY-MM-DD", "count": 5, "longest": 12 },
+ *     "selfCheck": { "w1-intro": [true, false, true] },
+ *     "chatLogs":  [ { lessonId, scenarioId, score, transcript, createdAt } ]   // capped at 30
+ *   }
  */
 
 const fs = require("fs");
 const path = require("path");
-const Database = require("better-sqlite3");
 
-const DEFAULT_DB_PATH = path.join(__dirname, "..", "data", "progress.db");
-const SCHEMA_PATH = path.join(__dirname, "schema.sql");
+const DEFAULT_PATH = path.join(__dirname, "..", "data", "progress.json");
+const MAX_LOGS = 30;
+const STATUS_RANK = { not_started: 0, in_progress: 1, completed: 2 };
 
-function open(dbPath = process.env.PROGRESS_DB_PATH || DEFAULT_DB_PATH) {
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const db = new Database(dbPath);
-  db.exec(fs.readFileSync(SCHEMA_PATH, "utf8"));
-  return new ProgressDB(db);
+function open(filePath = process.env.PROGRESS_DB_PATH || DEFAULT_PATH) {
+  // Backward-compat: accept the old `.db` env path and use a `.json` sibling.
+  if (filePath.endsWith(".db")) filePath = filePath.replace(/\.db$/, ".json");
+  return new JsonStore(filePath);
 }
 
-class ProgressDB {
-  constructor(db) {
-    this.db = db;
-    this._prep();
+class JsonStore {
+  constructor(filePath) {
+    this.filePath = filePath;
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    this.state = this._load();
   }
 
-  _prep() {
-    const db = this.db;
-    this.stmts = {
-      upsertUser: db.prepare(`
-        INSERT INTO users (user_id, last_seen_at)
-        VALUES (?, datetime('now'))
-        ON CONFLICT(user_id) DO UPDATE SET last_seen_at = datetime('now')
-      `),
-      getUser: db.prepare(`SELECT * FROM users WHERE user_id = ?`),
-
-      upsertLesson: db.prepare(`
-        INSERT INTO lesson_progress (user_id, lesson_id, status, started_at, completed_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, datetime('now'))
-        ON CONFLICT(user_id, lesson_id) DO UPDATE SET
-          status       = excluded.status,
-          started_at   = COALESCE(lesson_progress.started_at, excluded.started_at),
-          completed_at = CASE
-                           WHEN excluded.status = 'completed' THEN excluded.completed_at
-                           ELSE lesson_progress.completed_at
-                         END,
-          updated_at   = datetime('now')
-      `),
-      allLessons: db.prepare(`SELECT * FROM lesson_progress WHERE user_id = ?`),
-      deleteLesson: db.prepare(`DELETE FROM lesson_progress WHERE user_id = ? AND lesson_id = ?`),
-
-      insertAttempt: db.prepare(`
-        INSERT INTO scenario_attempts (user_id, lesson_id, scenario_id, score)
-        VALUES (?, ?, ?, ?)
-      `),
-      bestScores: db.prepare(`
-        SELECT lesson_id, scenario_id,
-               MAX(score) AS best_score,
-               COUNT(*)   AS attempts,
-               MAX(created_at) AS last_at
-        FROM scenario_attempts
-        WHERE user_id = ?
-        GROUP BY lesson_id, scenario_id
-      `),
-
-      insertChatLog: db.prepare(`
-        INSERT INTO chat_logs (user_id, lesson_id, scenario_id, score, transcript_json)
-        VALUES (?, ?, ?, ?, ?)
-      `),
-      recentChatLogs: db.prepare(`
-        SELECT log_id, lesson_id, scenario_id, score, transcript_json, created_at
-        FROM chat_logs
-        WHERE user_id = ?
-          AND (? IS NULL OR lesson_id = ?)
-        ORDER BY created_at DESC
-        LIMIT ?
-      `),
-      pruneChatLogs: db.prepare(`
-        DELETE FROM chat_logs
-        WHERE user_id = ?
-          AND log_id NOT IN (
-            SELECT log_id FROM chat_logs
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-          )
-      `),
-
-      getStreak: db.prepare(`SELECT * FROM streaks WHERE user_id = ?`),
-      upsertStreak: db.prepare(`
-        INSERT INTO streaks (user_id, last_study_date, current_count, longest_count, updated_at)
-        VALUES (?, ?, ?, ?, datetime('now'))
-        ON CONFLICT(user_id) DO UPDATE SET
-          last_study_date = excluded.last_study_date,
-          current_count   = excluded.current_count,
-          longest_count   = excluded.longest_count,
-          updated_at      = datetime('now')
-      `),
-
-      upsertSelfCheck: db.prepare(`
-        INSERT INTO self_check (user_id, lesson_id, checks_json, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
-        ON CONFLICT(user_id, lesson_id) DO UPDATE SET
-          checks_json = excluded.checks_json,
-          updated_at  = datetime('now')
-      `),
-      allSelfCheck: db.prepare(`SELECT lesson_id, checks_json FROM self_check WHERE user_id = ?`),
-
-      deleteUser: db.prepare(`DELETE FROM users WHERE user_id = ?`)
-    };
-  }
-
-  ensureUser(userId) {
-    this.stmts.upsertUser.run(userId);
-  }
-
-  // --- Lesson progress ---------------------------------------------------
-  setLessonStatus(userId, lessonId, status) {
-    this.ensureUser(userId);
-    const now = new Date().toISOString();
-    const startedAt = status === "not_started" ? null : now;
-    const completedAt = status === "completed" ? now : null;
-    this.stmts.upsertLesson.run(userId, lessonId, status, startedAt, completedAt);
-    this._bumpStreak(userId);
-  }
-
-  resetLesson(userId, lessonId) {
-    this.stmts.deleteLesson.run(userId, lessonId);
-  }
-
-  // --- Scenario attempts -------------------------------------------------
-  recordAttempt(userId, lessonId, scenarioId, score) {
-    this.ensureUser(userId);
-    this.stmts.insertAttempt.run(userId, lessonId, scenarioId, score);
-    // Mark lesson as in_progress on first attempt
-    const existing = this.db.prepare(
-      `SELECT status FROM lesson_progress WHERE user_id = ? AND lesson_id = ?`
-    ).get(userId, lessonId);
-    if (!existing) {
-      this.setLessonStatus(userId, lessonId, "in_progress");
-    } else {
-      this._bumpStreak(userId);
-    }
-  }
-
-  // --- Chat logs (capped at 30 most recent per user) --------------------
-  saveChatLog(userId, { lessonId, scenarioId, score, transcript }) {
-    this.ensureUser(userId);
-    this.stmts.insertChatLog.run(
-      userId,
-      lessonId || null,
-      scenarioId || null,
-      score == null ? null : Math.round(score),
-      JSON.stringify(transcript || [])
-    );
-    this.stmts.pruneChatLogs.run(userId, userId, 30);
-  }
-
-  // --- Self-check --------------------------------------------------------
-  setSelfCheck(userId, lessonId, checks) {
-    this.ensureUser(userId);
-    this.stmts.upsertSelfCheck.run(userId, lessonId, JSON.stringify(checks));
-  }
-
-  // --- Streak (computed) -------------------------------------------------
-  _bumpStreak(userId) {
-    const today = new Date().toISOString().slice(0, 10);
-    const cur = this.stmts.getStreak.get(userId);
-    if (cur && cur.last_study_date === today) return;
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    let count = 1;
-    let longest = 1;
-    if (cur) {
-      count = (cur.last_study_date === yesterday) ? (cur.current_count + 1) : 1;
-      longest = Math.max(cur.longest_count || 0, count);
-    }
-    this.stmts.upsertStreak.run(userId, today, count, longest);
-  }
-
-  // --- Bulk read for the front-end --------------------------------------
-  getAll(userId) {
-    this.ensureUser(userId);
-    const lessons = this.stmts.allLessons.all(userId);
-    const attempts = this.stmts.bestScores.all(userId);
-    const streak = this.stmts.getStreak.get(userId) || { last_study_date: null, current_count: 0, longest_count: 0 };
-    const selfCheck = this.stmts.allSelfCheck.all(userId);
-    const chatLogs = this.stmts.recentChatLogs.all(userId, null, null, 30).map(r => ({
-      logId: r.log_id,
-      lessonId: r.lesson_id,
-      scenarioId: r.scenario_id,
-      score: r.score,
-      transcript: safeJson(r.transcript_json),
-      createdAt: r.created_at
-    }));
-
-    const lessonsMap = {};
-    lessons.forEach(l => {
-      lessonsMap[l.lesson_id] = {
-        status: l.status,
-        startedAt: l.started_at,
-        completedAt: l.completed_at,
-        scenarios: {}
-      };
-    });
-    attempts.forEach(a => {
-      if (!lessonsMap[a.lesson_id]) {
-        lessonsMap[a.lesson_id] = { status: "in_progress", scenarios: {} };
-      }
-      lessonsMap[a.lesson_id].scenarios[a.scenario_id] = {
-        bestScore: a.best_score,
-        attempts: a.attempts,
-        lastAt: a.last_at
-      };
-    });
-
-    const selfCheckMap = {};
-    selfCheck.forEach(s => { selfCheckMap[s.lesson_id] = safeJson(s.checks_json) || []; });
-
+  // ---------- internal ----------
+  _empty() {
     return {
-      lessons: lessonsMap,
-      streak: {
-        lastStudyDate: streak.last_study_date,
-        count: streak.current_count,
-        longest: streak.longest_count
-      },
-      selfCheck: selfCheckMap,
-      chatLogs
+      lessons: {},
+      streak: { lastStudyDate: null, count: 0, longest: 0 },
+      selfCheck: {},
+      chatLogs: []
     };
   }
 
-  // --- Import from browser localStorage backup --------------------------
-  importBackup(userId, data) {
-    if (!data || typeof data !== "object") return { imported: 0 };
-    const tx = this.db.transaction(() => {
-      this.ensureUser(userId);
-      let imported = 0;
-
-      // lessons
-      Object.entries(data.lessons || {}).forEach(([lessonId, l]) => {
-        if (!l || !l.status) return;
-        this.stmts.upsertLesson.run(
-          userId, lessonId, l.status,
-          l.startedAt || null,
-          l.completedAt || null
-        );
-        imported++;
-        // scenarios are best-effort: each becomes a single attempt at best_score
-        Object.entries(l.scenarios || {}).forEach(([scId, s]) => {
-          if (s && s.bestScore != null) {
-            this.stmts.insertAttempt.run(userId, lessonId, scId, Math.round(s.bestScore));
-            imported++;
-          }
-        });
-      });
-
-      // streak
-      if (data.streak) {
-        this.stmts.upsertStreak.run(
-          userId,
-          data.streak.lastStudyDate || null,
-          data.streak.count || 0,
-          data.streak.longest || 0
-        );
+  _load() {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const raw = JSON.parse(fs.readFileSync(this.filePath, "utf8"));
+        return { ...this._empty(), ...raw };
       }
+    } catch (e) {
+      console.warn("[progress] failed to load JSON, starting fresh:", e.message);
+    }
+    return this._empty();
+  }
 
-      // chat logs (last 30)
-      (data.chatLogs || []).slice(0, 30).forEach(entry => {
-        this.stmts.insertChatLog.run(
-          userId,
-          entry.lessonId || null,
-          entry.scenarioId || null,
-          entry.score == null ? null : Math.round(entry.score),
-          JSON.stringify(entry.transcript || [])
-        );
-      });
+  _save() {
+    const tmp = this.filePath + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(this.state, null, 2));
+    fs.renameSync(tmp, this.filePath);
+  }
 
-      return imported;
+  _bumpStreak() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (this.state.streak.lastStudyDate === today) return;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    this.state.streak.count = (this.state.streak.lastStudyDate === yesterday)
+      ? (this.state.streak.count + 1)
+      : 1;
+    this.state.streak.longest = Math.max(this.state.streak.longest || 0, this.state.streak.count);
+    this.state.streak.lastStudyDate = today;
+  }
+
+  // ---------- lesson status ----------
+  setLessonStatus(_userId, lessonId, status) {
+    if (!STATUS_RANK.hasOwnProperty(status)) throw new Error(`bad status: ${status}`);
+    const now = new Date().toISOString();
+    const cur = this.state.lessons[lessonId] || { scenarios: {} };
+    cur.status = status;
+    if (status !== "not_started") {
+      cur.startedAt = cur.startedAt || now;
+    }
+    if (status === "completed") {
+      cur.completedAt = now;
+    }
+    this.state.lessons[lessonId] = cur;
+    this._bumpStreak();
+    this._save();
+  }
+
+  resetLesson(_userId, lessonId) {
+    delete this.state.lessons[lessonId];
+    this._save();
+  }
+
+  // ---------- scenario attempts ----------
+  recordAttempt(_userId, lessonId, scenarioId, score) {
+    const lesson = this.state.lessons[lessonId] || { status: "in_progress", scenarios: {} };
+    if (!lesson.status || lesson.status === "not_started") lesson.status = "in_progress";
+    lesson.startedAt = lesson.startedAt || new Date().toISOString();
+    const sc = lesson.scenarios[scenarioId] || { attempts: 0, bestScore: 0 };
+    sc.attempts = (sc.attempts || 0) + 1;
+    sc.bestScore = Math.max(sc.bestScore || 0, Math.round(score) || 0);
+    sc.lastAt = new Date().toISOString();
+    lesson.scenarios[scenarioId] = sc;
+    this.state.lessons[lessonId] = lesson;
+    this._bumpStreak();
+    this._save();
+  }
+
+  // ---------- chat logs (capped) ----------
+  saveChatLog(_userId, { lessonId, scenarioId, score, transcript }) {
+    this.state.chatLogs.unshift({
+      lessonId: lessonId || null,
+      scenarioId: scenarioId || null,
+      score: score == null ? null : Math.round(score),
+      transcript: transcript || [],
+      createdAt: new Date().toISOString()
     });
-    return { imported: tx() };
+    this.state.chatLogs = this.state.chatLogs.slice(0, MAX_LOGS);
+    this._save();
   }
 
-  reset(userId) {
-    this.stmts.deleteUser.run(userId);
+  // ---------- self check ----------
+  setSelfCheck(_userId, lessonId, checks) {
+    this.state.selfCheck[lessonId] = (checks || []).map(Boolean);
+    this._save();
   }
 
-  close() {
-    try { this.db.close(); } catch {}
+  // ---------- bulk ----------
+  getAll(_userId) {
+    // Deep clone so callers can't mutate internal state by accident.
+    return JSON.parse(JSON.stringify(this.state));
   }
+
+  // ---------- import (merges a localStorage backup) ----------
+  importBackup(_userId, data) {
+    if (!data || typeof data !== "object") return { imported: 0 };
+    let imported = 0;
+
+    // lessons (status only upgrades, never downgrades)
+    Object.entries(data.lessons || {}).forEach(([id, l]) => {
+      if (!l || !l.status) return;
+      const cur = this.state.lessons[id] || { scenarios: {} };
+      if ((STATUS_RANK[l.status] || 0) >= (STATUS_RANK[cur.status] || 0)) {
+        cur.status = l.status;
+        cur.startedAt = cur.startedAt || l.startedAt || null;
+        if (l.status === "completed") cur.completedAt = l.completedAt || cur.completedAt || new Date().toISOString();
+      }
+      // merge scenarios — best score wins, attempts add up
+      Object.entries(l.scenarios || {}).forEach(([sid, s]) => {
+        const ex = cur.scenarios[sid] || { attempts: 0, bestScore: 0 };
+        ex.bestScore = Math.max(ex.bestScore || 0, s.bestScore || 0);
+        ex.attempts = (ex.attempts || 0) + (s.attempts || 0);
+        ex.lastAt = s.lastAt || ex.lastAt;
+        cur.scenarios[sid] = ex;
+      });
+      this.state.lessons[id] = cur;
+      imported++;
+    });
+
+    // streak — keep the better record
+    if (data.streak) {
+      this.state.streak.count = Math.max(this.state.streak.count || 0, data.streak.count || 0);
+      this.state.streak.longest = Math.max(this.state.streak.longest || 0, data.streak.longest || 0);
+      this.state.streak.lastStudyDate = data.streak.lastStudyDate || this.state.streak.lastStudyDate;
+    }
+
+    // chat logs — merge, dedupe by createdAt+lesson+scenario, cap MAX_LOGS
+    const seen = new Set(this.state.chatLogs.map(l => `${l.createdAt}|${l.lessonId}|${l.scenarioId}`));
+    (data.chatLogs || []).forEach(log => {
+      const createdAt = log.at || log.createdAt || new Date().toISOString();
+      const key = `${createdAt}|${log.lessonId || null}|${log.scenarioId || null}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      this.state.chatLogs.push({
+        lessonId: log.lessonId || null,
+        scenarioId: log.scenarioId || null,
+        score: log.score == null ? null : Math.round(log.score),
+        transcript: log.transcript || [],
+        createdAt
+      });
+    });
+    this.state.chatLogs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    this.state.chatLogs = this.state.chatLogs.slice(0, MAX_LOGS);
+
+    // self-check
+    Object.entries(data.selfCheck || {}).forEach(([id, checks]) => {
+      if (Array.isArray(checks)) this.state.selfCheck[id] = checks.map(Boolean);
+    });
+
+    this._save();
+    return { imported };
+  }
+
+  reset(_userId) {
+    this.state = this._empty();
+    this._save();
+  }
+
+  close() { /* no-op for JSON store */ }
 }
 
-function safeJson(s) {
-  try { return JSON.parse(s); } catch { return null; }
-}
-
-module.exports = { open, ProgressDB };
+module.exports = { open, JsonStore };

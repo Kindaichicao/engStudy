@@ -15,7 +15,7 @@ primary_region = "sin"   # Singapore — close to Vietnam
 
 [env]
   PORT = "8080"
-  PROGRESS_DB_PATH = "/data/progress.db"
+  PROGRESS_DB_PATH = "/data/progress.json"
   COACH_PROVIDER = "gemini"
 
 [[mounts]]

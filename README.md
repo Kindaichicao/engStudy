@@ -81,99 +81,90 @@ Get a free key here:
 
 These are only used by the Business English pages and AI Coach; the rest of the site still works without the server.
 
-## Progress database
+## Progress store
 
 When the server is running, all Business English progress (lesson status, best
 scenario scores, attempt count, streak, self-check, last 30 chat transcripts)
-is mirrored to a SQLite file at `data/progress.db`. **Single-user mode**: every
-browser pointing at the same server shares the same data automatically — no
-login, no IDs to copy.
+is written to a single JSON file at `data/progress.json`. **Single-user mode**:
+every browser pointing at the same server shares the same data automatically —
+no login, no IDs to copy.
 
-Schema lives at `db/schema.sql`. Migration is automatic: the schema is
-re-applied with `CREATE TABLE IF NOT EXISTS` on every boot. The `data/` folder
-is gitignored.
+Why JSON instead of SQLite?
+
+- Boot once → load file into memory → every change writes the file atomically
+  (write to `.tmp` + rename). No DB engine, no native compilation.
+- The image / build is tiny — pure JS.
+- Backup is `cp data/progress.json elsewhere/`. Inspect by opening it in any editor.
+- Restore is `cp` in the other direction.
 
 If you switch from localStorage-only to the server later, the client
 automatically uploads its existing localStorage snapshot via
 `/api/progress/import` on first connect — no data lost.
 
-To back up the database, just copy `data/progress.db` somewhere safe.
-The Sync panel on the Business English page also has an *Export JSON* button
-for a portable backup.
+The Sync panel on the Business English page has an *Export JSON backup* button
+for a portable copy you can keep anywhere.
 
 ---
 
-## Deploy to Fly.io (cross-network access)
+## Deploy to Koyeb (free, cross-network access)
 
-If you want to use the app from any network (phone on 4G, laptop at a coffee shop), deploy the server to a public host. Fly.io is the easiest option for **Node + persistent SQLite** — keeps the same `data/progress.db` on a managed disk, single command to deploy. Region `sin` (Singapore) gives the lowest latency from Vietnam.
+If you want to use the app from any network (phone on 4G, laptop at a coffee shop), deploy the server to a public host. **Koyeb's free Eco tier is enough**: 1 free service, public HTTPS URL, region Singapore — perfect for single-user scale.
 
-### Prerequisites
+### One caveat: Koyeb free tier has no persistent volume
 
-```bash
-# Install the Fly CLI (one-time)
-brew install flyctl
-fly auth signup       # or `fly auth login` if you already have an account
-```
+The container's `/data/progress.json` is wiped on every redeploy or restart. Three ways to handle this:
 
-### First-time deploy
+1. **Just hit *Export JSON backup* before redeploying** (and *Import* via localStorage on next boot — the client auto-imports). Easiest, $0.
+2. **Pay for a Koyeb attached volume** (~$0.10/GB/month) to make `/data` persistent.
+3. **Run locally** with `npm start` if cross-network isn't required — file persists on your machine.
 
-```bash
-# 1. Initialise app (uses the existing fly.toml — pick a unique name)
-fly launch --no-deploy --copy-config --name techenglish-<your-suffix>
+The progress file is small (a few KB even after months of use), so option 1 is fine for most people.
 
-# 2. Create a 1 GB persistent volume in the same region (free up to 3 GB total)
-fly volume create techenglish_data --region sin --size 1
+### Deploy steps (Git-based, one-time setup)
 
-# 3. Set your AI key(s) as secrets (NEVER commit these)
-fly secrets set GEMINI_API_KEY="AIza..."
-# optional:  fly secrets set GROQ_API_KEY="gsk_..."
+1. Push this folder to a GitHub repo (private is fine).
+2. Sign up at <https://app.koyeb.com> (GitHub login).
+3. **Create Service → GitHub** → pick your repo + main branch.
+4. Builder: **Dockerfile** (Koyeb auto-detects the `Dockerfile` in this repo).
+5. **Instance type:** `Free` (Eco). Region: `sin` (Singapore).
+6. **Ports:** expose `8080` HTTP.
+7. **Environment variables:**
+   - `GEMINI_API_KEY` = your key (mark as Secret)
+   - `GROQ_API_KEY` = your key, optional (mark as Secret)
+   - `COACH_PROVIDER` = `gemini`
+   - `PROGRESS_DB_PATH` = `/data/progress.json` (already in the Dockerfile)
+8. Health check: HTTP `/api/progress/health` (optional but recommended).
+9. **Deploy**. Build ~1–2 minutes. App URL: `https://<app>-<org>.koyeb.app`.
 
-# 4. Ship it
-fly deploy
-```
-
-After deploy, your app is at `https://techenglish-<suffix>.fly.dev`. Open it from anywhere — same progress, same DB.
+Open it from any device → same progress (until next redeploy).
 
 ### Update code later
 
 ```bash
-fly deploy            # rebuilds + redeploys
+git push        # Koyeb auto-rebuilds and redeploys
 ```
-
-### Useful Fly commands
-
-```bash
-fly logs                  # tail server logs
-fly status                # see machine state
-fly ssh console           # open a shell inside the running container
-fly volumes list          # confirm the volume is attached
-fly secrets list          # show which secret names are set (values hidden)
-```
-
-### Costs
-
-- First-time accounts get a small trial credit.
-- The default config uses `auto_stop_machines = "stop"` — the VM idles to zero when nobody is using the app and wakes up on the next request (~1 second cold start). At single-user scale this typically costs around **$2–3/month** after the trial credit runs out.
-- The persistent volume (1 GB in Singapore) is roughly **$0.15/month**.
 
 ### Backup / restore
 
-```bash
-# Backup the live DB
-fly ssh sftp shell
-> get /data/progress.db ./progress-backup.db
+- **Backup:** open the app → Business English page → *Export JSON backup* button.
+- **Restore:** the client auto-imports its localStorage on next connect, so just keep using the same browser. To restore on a brand-new browser, hit Import (or paste the backup into localStorage manually under the key `business_progress`).
 
-# Restore
-fly ssh sftp shell
-> put ./progress-backup.db /data/progress.db
-fly machine restart --app techenglish-<suffix>
+---
+
+## Alternative: Deploy to Fly.io (paid, but with persistent volume)
+
+If you want the JSON file to survive redeploys without manual export/import, Fly.io has cheap persistent volumes (~$0.15/GB/month) — see `fly.toml`.
+
+```bash
+brew install flyctl
+fly auth signup
+fly launch --no-deploy --copy-config --name techenglish-<suffix>
+fly volume create techenglish_data --region sin --size 1
+fly secrets set GEMINI_API_KEY="AIza..."
+fly deploy
 ```
 
-Or just hit *Export JSON backup* in the Sync panel from any browser.
-
-### Alternative: Render free tier + Turso
-
-If you'd rather pay nothing forever and don't mind a 30-second cold start, swap the SQLite layer for [Turso](https://turso.tech) (managed libsql/SQLite, free tier 9 GB) and deploy on Render's free Node service. Ask the assistant for that variant — it's a small refactor of `db/progress-db.js`.
+The free trial credit covers a few months at single-user scale. After that ~$2–3/month total.
 
 ---
 
@@ -196,10 +187,11 @@ If you'd rather pay nothing forever and don't mind a 30-second cold start, swap 
 │       ├── vocabulary.js, lessons.js, articles.js   # IT English content
 ├── server.js                     # Node/Express static + AI proxy + progress API
 ├── db/
-│   ├── schema.sql                # SQLite tables
-│   └── progress-db.js            # data-access layer (better-sqlite3)
-├── data/                         # SQLite file (created at runtime, gitignored)
-│   └── progress.db
+│   └── progress-db.js            # JSON-file progress store (in-memory + atomic write)
+├── data/                         # progress.json lives here at runtime (gitignored)
+│   └── progress.json
+├── Dockerfile                    # production image (Koyeb / Fly / any container host)
+├── fly.toml                      # Fly.io config (optional)
 ├── package.json
 ├── .env.example                  # template
 └── .env                          # your secrets (gitignored)
