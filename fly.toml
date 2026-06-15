@@ -1,0 +1,43 @@
+# Fly.io app config for TechEnglish.
+#
+# Run once to set things up:
+#   fly launch --no-deploy --copy-config --name <your-app-name>
+#   fly volume create techenglish_data --region sin --size 1
+#   fly secrets set GEMINI_API_KEY=AIza... GROQ_API_KEY=gsk_...
+#   fly deploy
+#
+# Update later:
+#   fly deploy
+
+primary_region = "sin"   # Singapore — close to Vietnam
+
+[build]
+
+[env]
+  PORT = "8080"
+  PROGRESS_DB_PATH = "/data/progress.db"
+  COACH_PROVIDER = "gemini"
+
+[[mounts]]
+  source = "techenglish_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Auto-stop when idle, auto-start on first request → cheapest possible.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/progress/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

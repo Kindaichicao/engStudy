@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Coach — Business English Practice</title>
+  <meta name="description" content="Practice Business English speaking with an AI coach. Works offline in scripted mode or with your own Gemini/Groq key.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/business.css">
+  <link rel="stylesheet" href="css/coach.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="index.html" class="site-logo">
+      <div class="site-logo-icon">TE</div>
+      TechEnglish
+    </a>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="business-english.html" class="nav-link">Business English</a>
+      <a href="coach.html" class="nav-link active">AI Coach</a>
+      <a href="index.html#lessons" class="nav-link">IT Lessons</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="index.html" class="nav-link">Home</a>
+  <a href="business-english.html" class="nav-link">Business English</a>
+  <a href="coach.html" class="nav-link active">AI Coach</a>
+</nav>
+
+<main>
+  <div class="coach-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="coach-sidebar">
+      <h3>🎯 Practice Settings</h3>
+
+      <div class="coach-mode-toggle" role="tablist">
+        <button data-mode="scripted" class="active">Scripted (offline)</button>
+        <button data-mode="ai">AI Free Chat</button>
+      </div>
+      <p class="coach-helper">
+        <strong>Scripted</strong> works without internet — coach asks scripted questions and scores your answers.
+        <strong>AI</strong> uses Gemini or Groq (both free) for free conversation. If the Node server is running with a key in <code>.env</code>, it's used automatically; otherwise you can paste a key below.
+      </p>
+      <p class="coach-helper" id="ai-status" style="display:none;"></p>
+
+      <div class="field">
+        <label for="lesson-select">Lesson</label>
+        <select id="lesson-select"></select>
+      </div>
+
+      <div class="field">
+        <label for="scenario-select">Scenario</label>
+        <select id="scenario-select"></select>
+      </div>
+
+      <button id="restart-btn" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;">Restart scenario</button>
+
+      <hr style="border:none;border-top:1px solid var(--color-border);margin:var(--space-4) 0;">
+
+      <h3>💡 Scenario</h3>
+      <p class="coach-helper" id="scenario-info">Pick a lesson and scenario to start.</p>
+
+      <h3 style="margin-top:var(--space-4);">📋 Target phrases</h3>
+      <p class="coach-helper">Try to use these in your answers. They turn green when you do.</p>
+      <ul class="expected-list" id="expected-list"></ul>
+
+      <h3 style="margin-top:var(--space-4);">📈 Progress</h3>
+      <div class="coach-progress-bar"><div class="coach-progress-fill" id="progress-fill"></div></div>
+      <p class="coach-helper" id="step-label">—</p>
+
+      <div class="field" id="provider-field" style="display:none;">
+        <label for="api-provider">AI provider</label>
+        <select id="api-provider">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq (Llama 3.3)</option>
+        </select>
+      </div>
+
+      <div id="api-key-row" class="api-key-row">
+        <hr style="border:none;border-top:1px solid var(--color-border);margin:var(--space-4) 0;">
+        <h3>🔑 Browser-only API Key</h3>
+        <p class="coach-helper" style="margin-bottom:var(--space-3);">
+          Use this only if you can't run the Node server. The key stays in your browser localStorage.
+        </p>
+        <div class="field">
+          <label for="api-key">API Key</label>
+          <input id="api-key" type="password" placeholder="Paste your key" autocomplete="off">
+        </div>
+        <p class="coach-helper">
+          Free keys:
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Gemini</a> ·
+          <a href="https://console.groq.com/keys" target="_blank" rel="noopener">Groq</a>.
+        </p>
+      </div>
+    </aside>
+
+    <!-- CHAT -->
+    <section class="coach-main">
+      <div class="coach-header">
+        <h2>💬 AI Business English Coach</h2>
+        <div class="sub">Type or tap 🎙 to speak. The coach will respond and give feedback.</div>
+      </div>
+
+      <div class="coach-chat" id="chat">
+        <!-- messages here -->
+      </div>
+
+      <div class="coach-input-row">
+        <button id="speaker-btn" class="coach-icon-btn" title="Toggle coach speaking out loud">🔊</button>
+        <button id="mic-btn" class="coach-icon-btn" title="Speak (push-to-talk)">🎙</button>
+        <textarea id="input" class="coach-input" placeholder="Type your answer in English..."></textarea>
+        <button id="send-btn" class="coach-icon-btn coach-send-btn" title="Send">➤</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script src="js/speech.js"></script>
+<script src="js/data/business-plan.js"></script>
+<script src="js/business-progress.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/coach.js"></script>
+
+</body>
+</html>

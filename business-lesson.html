@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson — Business English</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/business.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="index.html" class="site-logo">
+      <div class="site-logo-icon">TE</div>
+      TechEnglish
+    </a>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="business-english.html" class="nav-link active">Business English</a>
+      <a href="coach.html" class="nav-link">AI Coach</a>
+      <a href="index.html#lessons" class="nav-link">IT Lessons</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="index.html" class="nav-link">Home</a>
+  <a href="business-english.html" class="nav-link active">Business English</a>
+  <a href="coach.html" class="nav-link">AI Coach</a>
+</nav>
+
+<main class="site-main">
+
+  <section class="lesson-hero">
+    <div class="container">
+      <div class="breadcrumb">
+        <a href="business-english.html">Business English</a> · <span id="bc-phase"></span> · <span id="bc-month"></span>
+      </div>
+      <h1 id="lesson-title"></h1>
+      <p class="objective" id="lesson-objective"></p>
+      <div class="meta" id="lesson-meta"></div>
+    </div>
+  </section>
+
+  <section class="page-section">
+    <div class="container" id="lesson-container">
+      <!-- Filled by JS -->
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">TechEnglish</div>
+      <div class="footer-tagline">Business English for developers</div>
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="business-english.html">Plan</a>
+      <a href="coach.html">AI Coach</a>
+    </div>
+  </div>
+</footer>
+
+<script src="js/speech.js"></script>
+<script src="js/data/business-plan.js"></script>
+<script src="js/business-progress.js"></script>
+<script src="js/nav.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const lessonId = params.get('id');
+
+  const lesson = BUSINESS_LESSONS_INDEX.find(l => l.id === lessonId);
+  if (!lesson) {
+    document.getElementById('lesson-container').innerHTML = `
+      <p style="text-align:center;padding:48px 0;color:var(--color-text-muted);">
+        Lesson not found. <a href="business-english.html">Back to plan</a>.
+      </p>
+    `;
+    document.getElementById('lesson-title').textContent = "Lesson not found";
+    return;
+  }
+
+  BusinessProgress.markInProgress(lesson.id);
+  const lessonState = BusinessProgress.getLesson(lesson.id);
+
+  document.getElementById('bc-phase').textContent = lesson.phaseName;
+  document.getElementById('bc-month').textContent = `Month ${lesson.monthNumber} — ${lesson.monthTheme}`;
+  document.getElementById('lesson-title').textContent = `Week ${lesson.week} — ${lesson.title}`;
+  document.getElementById('lesson-objective').textContent = lesson.objective;
+  document.getElementById('lesson-meta').innerHTML = `
+    <span class="meta-pill">⏱ ${lesson.minutes} min</span>
+    <span class="meta-pill">📚 ${lesson.vocabulary.length} vocab</span>
+    <span class="meta-pill">💬 ${lesson.phrases.length} phrases</span>
+    <span class="meta-pill">🎯 ${lesson.scenarios.length} scenarios</span>
+  `;
+
+  const container = document.getElementById('lesson-container');
+
+  // Vocabulary
+  const vocabSection = document.createElement('div');
+  vocabSection.className = 'lesson-section';
+  vocabSection.innerHTML = `
+    <h2>1. Key Vocabulary</h2>
+    <p class="desc">Learn these words by heart — they unlock the phrases in this lesson.</p>
+    <div class="vocab-grid">
+      ${lesson.vocabulary.map(v => `
+        <div class="vocab-item">
+          <div>
+            <div class="vocab-term">${v.term}</div>
+            <div class="vocab-meaning">${v.meaning}</div>
+          </div>
+          <button class="phrase-speak-btn" data-text="${v.term}" aria-label="Speak">🔊</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  container.appendChild(vocabSection);
+
+  // Phrases
+  const phrasesSection = document.createElement('div');
+  phrasesSection.className = 'lesson-section';
+  phrasesSection.innerHTML = `
+    <h2>2. Useful Phrases</h2>
+    <p class="desc">Say each phrase out loud at least three times. Tap 🔊 to hear it.</p>
+    <div class="phrases-list">
+      ${lesson.phrases.map(p => `
+        <div class="phrases-list-row">
+          <span class="text">${p}</span>
+          <button class="phrase-speak-btn" data-text="${p.replace(/"/g, '&quot;')}" aria-label="Speak">🔊</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  container.appendChild(phrasesSection);
+
+  // Sample dialog
+  const dialogSection = document.createElement('div');
+  dialogSection.className = 'lesson-section';
+  dialogSection.innerHTML = `
+    <h2>3. Sample Dialog</h2>
+    <p class="desc">Read along, then practice the "You" lines until they feel natural.</p>
+    <div class="dialog-block">
+      ${lesson.dialog.map(d => {
+        const isYou = d.role.toLowerCase().startsWith('you');
+        return `
+        <div class="dialog-row ${isYou ? 'you' : ''}">
+          <div class="dialog-role">${d.role}</div>
+          <div class="dialog-bubble">
+            <span>${d.text}</span>
+            <button class="phrase-speak-btn" data-text="${d.text.replace(/"/g, '&quot;')}" aria-label="Speak">🔊</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  container.appendChild(dialogSection);
+
+  // Scenarios
+  const scSection = document.createElement('div');
+  scSection.className = 'lesson-section';
+  scSection.innerHTML = `
+    <h2>4. Practice Scenarios with the AI Coach</h2>
+    <p class="desc">Pick a scenario and practice with the AI coach. You can type or speak your response — the coach gives instant feedback.</p>
+    <div id="scenarios"></div>
+  `;
+  container.appendChild(scSection);
+  const scContainer = scSection.querySelector('#scenarios');
+  lesson.scenarios.forEach(s => {
+    const best = lessonState.scenarios?.[s.id]?.bestScore || 0;
+    const card = document.createElement('div');
+    card.className = 'scenario-card';
+    card.innerHTML = `
+      <h3>${s.title}</h3>
+      <p class="setup">${s.setup}</p>
+      <div class="opener">Coach opener: "${s.coachOpener}"</div>
+      <div class="action-row">
+        <a href="coach.html?lesson=${lesson.id}&scenario=${s.id}" class="btn btn-primary btn-sm">Practice this scenario →</a>
+        <span class="scenario-best-score">${best > 0 ? `Best score: ${best}/100` : 'Not attempted yet'}</span>
+      </div>
+    `;
+    scContainer.appendChild(card);
+  });
+
+  // Self-check
+  const checkSection = document.createElement('div');
+  checkSection.className = 'lesson-section';
+  checkSection.innerHTML = `
+    <h2>5. Self-Check</h2>
+    <p class="desc">Be honest. Check each one only when you can do it confidently.</p>
+    <div class="checklist">
+      ${lesson.selfCheck.map((q, i) => `
+        <label class="checklist-item">
+          <input type="checkbox" data-idx="${i}" />
+          <span>${q}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
+  container.appendChild(checkSection);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'lesson-actions';
+  actions.innerHTML = `
+    <a href="business-english.html" class="btn btn-outline">← Back to plan</a>
+    <a href="coach.html?lesson=${lesson.id}" class="btn btn-primary">Practice all scenarios →</a>
+    <button id="mark-complete" class="btn ${lessonState.status === 'completed' ? 'btn-outline' : 'btn-primary'}">
+      ${lessonState.status === 'completed' ? '✓ Completed — mark again' : 'Mark lesson as complete'}
+    </button>
+  `;
+  container.appendChild(actions);
+
+  document.getElementById('mark-complete').addEventListener('click', () => {
+    BusinessProgress.markCompleted(lesson.id);
+    location.reload();
+  });
+
+  // Wire all speakers
+  document.querySelectorAll('.phrase-speak-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Speech.speak(btn.dataset.text, { rate: 0.95 });
+    });
+  });
+
+  // Self-check now lives in BusinessProgress (synced to server when available)
+  const checks = BusinessProgress.getSelfCheck(lesson.id);
+  document.querySelectorAll('.checklist input').forEach(inp => {
+    const idx = Number(inp.dataset.idx);
+    inp.checked = !!checks[idx];
+    inp.addEventListener('change', () => {
+      checks[idx] = inp.checked;
+      BusinessProgress.setSelfCheck(lesson.id, checks);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

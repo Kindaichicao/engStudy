@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business English — 6-Month Speaking Plan</title>
+  <meta name="description" content="A 6-month Business English speaking program for software developers. Foundation + advanced phases with daily phrases and an AI coach.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/business.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="index.html" class="site-logo">
+      <div class="site-logo-icon">TE</div>
+      TechEnglish
+    </a>
+    <nav class="site-nav" id="site-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="business-english.html" class="nav-link active">Business English</a>
+      <a href="coach.html" class="nav-link">AI Coach</a>
+      <a href="index.html#lessons" class="nav-link">IT Lessons</a>
+    </nav>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="index.html" class="nav-link">Home</a>
+  <a href="business-english.html" class="nav-link active">Business English</a>
+  <a href="coach.html" class="nav-link">AI Coach</a>
+  <a href="index.html#lessons" class="nav-link">IT Lessons</a>
+</nav>
+
+<main class="site-main">
+
+  <!-- HERO -->
+  <section class="biz-hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span>💼</span>
+        <span>For Software Developers</span>
+      </div>
+      <h1 class="hero-title" id="biz-title"></h1>
+      <p class="hero-subtitle" id="biz-subtitle"></p>
+      <div class="hero-actions">
+        <a href="#plan" class="btn btn-primary btn-lg">View Plan</a>
+        <a href="coach.html" class="btn btn-secondary btn-lg">Practice with AI Coach</a>
+      </div>
+
+      <div class="biz-stats" id="biz-stats">
+        <!-- filled by JS -->
+      </div>
+
+      <div class="sync-panel">
+        <div class="sync-panel-title">
+          <span class="sync-status-dot" id="sync-dot"></span>
+          <span id="sync-label">Checking sync…</span>
+        </div>
+        <div class="sync-row">
+          <button class="btn btn-sm" id="export-btn">Export JSON backup</button>
+          <button class="btn btn-sm" id="reset-btn" style="background:rgba(239,68,68,0.3);">Reset all progress</button>
+        </div>
+        <p class="sync-helper" id="sync-helper">
+          When the Node server is running, every browser pointing to <code>localhost:8765</code> shares the same progress (saved to <code>data/progress.db</code>). Without the server, progress stays in this browser only.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="page-section" id="plan">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Your 6-Month Roadmap</h2>
+        <p class="section-subtitle">24 weekly lessons. Each lesson takes 20–35 minutes. Click any week to open the study material and the AI coach.</p>
+      </div>
+
+      <div id="phases-container">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- DAILY PHRASES -->
+  <section class="page-section" id="daily" style="background: var(--color-bg);">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Everyday Office Phrases</h2>
+        <p class="section-subtitle">Memorize these for instant fluency in standups, chat, and meetings. Tap the speaker to hear them.</p>
+      </div>
+      <div class="daily-phrases-grid" id="daily-phrases-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">TechEnglish</div>
+      <div class="footer-tagline">Business English for developers — speak with confidence.</div>
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="business-english.html#plan">Plan</a>
+      <a href="coach.html">AI Coach</a>
+      <a href="index.html#lessons">IT Lessons</a>
+    </div>
+  </div>
+</footer>
+
+<script src="js/speech.js"></script>
+<script src="js/data/business-plan.js"></script>
+<script src="js/data/daily-phrases.js"></script>
+<script src="js/business-progress.js"></script>
+<script src="js/nav.js"></script>
+<script>
+(function () {
+  document.getElementById('biz-title').textContent = BUSINESS_PLAN.title;
+  document.getElementById('biz-subtitle').textContent = BUSINESS_PLAN.subtitle;
+
+  // Stats
+  const stats = BusinessProgress.getStats();
+  const streak = BusinessProgress.getStreak();
+  document.getElementById('biz-stats').innerHTML = `
+    <div class="biz-stat">
+      <div class="biz-stat-value">${stats.completed}/${stats.total}</div>
+      <div class="biz-stat-label">Lessons completed</div>
+    </div>
+    <div class="biz-stat">
+      <div class="biz-stat-value">${stats.percent}%</div>
+      <div class="biz-stat-label">Progress</div>
+    </div>
+    <div class="biz-stat">
+      <div class="biz-stat-value">${streak.count}🔥</div>
+      <div class="biz-stat-label">Day streak (best ${streak.longest})</div>
+    </div>
+    <div class="biz-stat">
+      <div class="biz-stat-value">24</div>
+      <div class="biz-stat-label">Weekly lessons</div>
+    </div>
+  `;
+
+  // Render phases
+  const STATUS_LABEL = { not_started: "Not started", in_progress: "In progress", completed: "Completed" };
+  const container = document.getElementById('phases-container');
+  BUSINESS_PLAN.phases.forEach(phase => {
+    const phaseEl = document.createElement('div');
+    phaseEl.className = `phase-block ${phase.id}`;
+    phaseEl.innerHTML = `
+      <div class="phase-header">
+        <span class="phase-name">${phase.name}</span>
+        <span class="phase-months">${phase.months} · ${phase.level}</span>
+      </div>
+      <p class="phase-goal"><strong>Focus:</strong> ${phase.focus} <br><strong>Goal:</strong> ${phase.goal}</p>
+      <div class="phase-months-list"></div>
+    `;
+    const monthsList = phaseEl.querySelector('.phase-months-list');
+
+    phase.months_list.forEach(month => {
+      const monthEl = document.createElement('div');
+      monthEl.className = 'month-block';
+      monthEl.innerHTML = `
+        <div class="month-header">Month ${month.number} — ${month.theme}</div>
+        <div class="month-theme">${month.weeks.length} weekly lessons</div>
+        <div class="weeks-grid"></div>
+      `;
+      const grid = monthEl.querySelector('.weeks-grid');
+
+      month.weeks.forEach(week => {
+        const status = BusinessProgress.getStatus(week.id);
+        const card = document.createElement('div');
+        card.className = `week-card is-${status}`;
+        card.innerHTML = `
+          <div class="week-card-header">
+            <h3 class="week-card-title">${week.title}</h3>
+            <span class="week-number-badge">W${week.week}</span>
+          </div>
+          <p class="week-card-objective">${week.objective}</p>
+          <div class="week-card-meta">
+            <span>⏱ ${week.minutes} min</span>
+            <span>📚 ${week.vocabulary.length} terms</span>
+            <span>💬 ${week.scenarios.length} scenarios</span>
+            <span class="status-pill ${status}">${STATUS_LABEL[status]}</span>
+          </div>
+          <div class="week-card-footer">
+            <a href="business-lesson.html?id=${week.id}" class="btn btn-outline btn-sm">Open</a>
+            <a href="coach.html?lesson=${week.id}" class="btn btn-primary btn-sm">Practice</a>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      monthsList.appendChild(monthEl);
+    });
+
+    container.appendChild(phaseEl);
+  });
+
+  // Daily phrases
+  const dailyGrid = document.getElementById('daily-phrases-grid');
+  DAILY_PHRASES.forEach(group => {
+    const card = document.createElement('div');
+    card.className = 'phrases-card';
+    const rows = group.phrases.map(p => `
+      <div class="phrase-row">
+        <div>
+          <div class="phrase-text">${p.en}</div>
+          ${p.note ? `<div class="phrase-note">${p.note}</div>` : ''}
+        </div>
+        <button class="phrase-speak-btn" data-text="${p.en.replace(/"/g, '&quot;')}" aria-label="Speak">🔊</button>
+      </div>
+    `).join('');
+    card.innerHTML = `
+      <div class="phrases-card-title">
+        <span class="phrases-card-emoji">${group.emoji}</span>
+        ${group.title}
+      </div>
+      ${rows}
+    `;
+    dailyGrid.appendChild(card);
+  });
+
+  // Wire speaker buttons
+  document.querySelectorAll('.phrase-speak-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Speech.speak(btn.dataset.text, { rate: 0.95 });
+    });
+  });
+
+  // ====== Sync panel ======
+  const syncDot = document.getElementById('sync-dot');
+  const syncLabel = document.getElementById('sync-label');
+
+  function refreshSyncStatus() {
+    const s = BusinessProgress.getServerStatus();
+    if (!s.checked) {
+      syncDot.className = 'sync-status-dot';
+      syncLabel.textContent = 'Checking sync…';
+    } else if (s.available) {
+      syncDot.className = 'sync-status-dot online';
+      syncLabel.textContent = 'Saved to server database';
+    } else {
+      syncDot.className = 'sync-status-dot offline';
+      syncLabel.textContent = 'Offline — saved in this browser only';
+    }
+    // Refresh stats once sync completes.
+    const stats = BusinessProgress.getStats();
+    const streak = BusinessProgress.getStreak();
+    const statsEl = document.getElementById('biz-stats');
+    if (statsEl) {
+      statsEl.querySelector('.biz-stat:nth-child(1) .biz-stat-value').textContent = `${stats.completed}/${stats.total}`;
+      statsEl.querySelector('.biz-stat:nth-child(2) .biz-stat-value').textContent = `${stats.percent}%`;
+      statsEl.querySelector('.biz-stat:nth-child(3) .biz-stat-value').textContent = `${streak.count}🔥`;
+    }
+  }
+
+  BusinessProgress.onSync(refreshSyncStatus);
+  refreshSyncStatus();
+
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const data = BusinessProgress.getAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = URL.createObjectURL(blob);
+    a.download = `techenglish-progress-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (!confirm('This will erase ALL your Business English progress (local + server). Are you sure?')) return;
+    BusinessProgress.resetAll();
+    alert('Progress cleared. Reloading…');
+    location.reload();
+  });
+})();
+</script>
+
+</body>
+</html>
